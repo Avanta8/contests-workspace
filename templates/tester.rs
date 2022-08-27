@@ -53,12 +53,13 @@ pub(crate) fn run_tests() -> bool {
     let green = "\x1B[32m";
     let yellow = "\x1B[33m";
     let def = "\x1B[0m";
-    let time_limit = std::time::Duration::from_millis($TIME_LIMIT);
+    let time_limit = std::time::Duration::from_millis(1000);
     let mut paths = std::fs::read_dir("./$TASK/tests/")
+        .or_else(|_| std::fs::read_dir("./tests/"))
         .unwrap()
         .map(|res| res.unwrap())
         .collect::<Vec<_>>();
-    paths.sort_by(|a, b| a.path().cmp(&b.path()));
+    paths.sort_by_key(|a| a.path());
     let mut test_failed = 0usize;
     let mut test_total = 0usize;
     for path in paths {
@@ -122,7 +123,7 @@ pub(crate) fn run_tests() -> bool {
                                     println!("{}Input not exhausted{}", red, def);
                                 }
                                 if let Some(expected) = expected {
-                                    let mut expected_bytes = expected.as_bytes().clone();
+                                    let mut expected_bytes = expected.as_bytes();
                                     match check(&mut expected_bytes, &mut &output[..]) {
                                         Ok(_) => {}
                                         Err(err) => {
