@@ -1,7 +1,31 @@
-use std::fmt::Debug;
+use crate::numbers::num_traits::add_sub::AddSub;
+use crate::numbers::num_traits::from_u8::FromU8;
+use crate::numbers::num_traits::mul_div_rem::Multable;
+use crate::numbers::num_traits::sign::IsSigned;
+use crate::numbers::num_traits::zero_one::ZeroOne;
+use std::fmt::Display;
 use std::io::Read;
 use std::marker::PhantomData;
-use std::str::FromStr;
+
+macro_rules! read_impl {
+    ($t: ty, $read_name: ident, $read_vec_name: ident) => {
+        pub fn $read_name(&mut self) -> $t {
+            self.read()
+        }
+
+        pub fn $read_vec_name(&mut self, len: usize) -> Vec<$t> {
+            self.read_vec(len)
+        }
+    };
+
+    ($t: ty, $read_name: ident, $read_vec_name: ident, $read_pair_vec_name: ident) => {
+        read_impl!($t, $read_name, $read_vec_name);
+
+        pub fn $read_pair_vec_name(&mut self, len: usize) -> Vec<($t, $t)> {
+            self.read_vec(len)
+        }
+    };
+}
 
 pub struct Input<'s> {
     input: &'s mut dyn Read,
@@ -108,23 +132,64 @@ impl<'s> Input<'s> {
         res
     }
 
-    #[allow(clippy::should_implement_trait)]
-    pub fn into_iter<T: Readable>(self) -> InputIterator<'s, T> {
+    pub fn iter<'t, T: Readable + 't + 's>(&'t mut self) -> InputIterator<'t, 's, T>
+    where
+        's: 't,
+    {
         InputIterator {
             input: self,
             phantom: Default::default(),
         }
     }
 
-    fn read_integer<T: FromStr>(&mut self) -> T
-    where
-        <T as FromStr>::Err: Debug,
-    {
-        let res = self.read_string();
-        res.parse::<T>().unwrap()
+    fn read_integer<T: IsSigned + ZeroOne + FromU8 + AddSub + Multable + Display>(&mut self) -> T {
+        self.skip_whitespace();
+        let mut c = self.get().unwrap();
+        let sgn = if c == b'-' {
+            if !T::SIGNED {
+                panic!("negative integer")
+            }
+            c = self.get().unwrap();
+            true
+        } else if c == b'+' {
+            c = self.get().unwrap();
+            false
+        } else {
+            false
+        };
+        let mut res = T::zero();
+        loop {
+            if !c.is_ascii_digit() {
+                panic!(
+                    "expected integer, found {}{}{}",
+                    if sgn { "-" } else { "" },
+                    res,
+                    c as char
+                );
+            }
+            res *= T::from_u8(10);
+            res += T::from_u8(c - b'0');
+            match self.get() {
+                None => {
+                    break;
+                }
+                Some(ch) => {
+                    if char::from(ch).is_whitespace() {
+                        break;
+                    } else {
+                        c = ch;
+                    }
+                }
+            }
+        }
+        if sgn {
+            debug_assert!(T::SIGNED);
+            res = T::zero() - res
+        }
+        res
     }
 
-    fn read_string(&mut self) -> String {
+    pub fn read_string(&mut self) -> String {
         match self.next_token() {
             None => {
                 panic!("Input exhausted");
@@ -133,13 +198,27 @@ impl<'s> Input<'s> {
         }
     }
 
-    fn read_char(&mut self) -> char {
+    pub fn read_char(&mut self) -> char {
         self.skip_whitespace();
         self.get().unwrap().into()
     }
 
-    fn read_float(&mut self) -> f64 {
-        self.read_string().parse().unwrap()
+    read_impl!(u8, read_u8, read_u8_vec);
+    read_impl!(u16, read_u16, read_u16_vec);
+    read_impl!(u32, read_unsigned, read_unsigned_vec);
+    read_impl!(u64, read_u64, read_u64_vec);
+    read_impl!(u128, read_u128, read_u128_vec);
+    read_impl!(usize, read_usize, read_usize_vec, read_usize_pair_vec);
+    read_impl!(i8, read_i8, read_i8_vec);
+    read_impl!(i16, read_i16, read_i16_vec);
+    read_impl!(i32, read_int, read_int_vec, read_int_pair_vec);
+    read_impl!(i64, read_long, read_long_vec, read_long_pair_vec);
+    read_impl!(i128, read_i128, read_i128_vec);
+    read_impl!(isize, read_isize, read_isize_vec);
+    read_impl!(f64, read_float, read_float_vec);
+
+    fn read_float_impl(&mut self) -> f64 {
+        self.read::<String>().parse().unwrap()
     }
 
     fn refill_buffer(&mut self) -> bool {
@@ -150,6 +229,20 @@ impl<'s> Input<'s> {
         } else {
             true
         }
+    }
+}
+
+pub struct InputIterator<'t, 's: 't, T: Readable + 't + 's> {
+    input: &'t mut Input<'s>,
+    phantom: PhantomData<T>,
+}
+
+impl<'t, 's: 't, T: Readable + 't + 's> Iterator for InputIterator<'t, 's, T> {
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.input.skip_whitespace();
+        self.input.peek().map(|_| self.input.read())
     }
 }
 
@@ -171,7 +264,7 @@ impl Readable for char {
 
 impl Readable for f64 {
     fn read(input: &mut Input) -> Self {
-        input.read_float()
+        input.read_float_impl()
     }
 }
 
@@ -182,45 +275,20 @@ impl<T: Readable> Readable for Vec<T> {
     }
 }
 
-pub struct InputIterator<'s, T: Readable> {
-    input: Input<'s>,
-    phantom: PhantomData<T>,
-}
-
-impl<'s, T: Readable> Iterator for InputIterator<'s, T> {
-    type Item = T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.input.skip_whitespace();
-        self.input.peek().map(|_| self.input.read())
-    }
-}
-
 macro_rules! read_integer {
-    ($t:ident) => {
+    ($($t:ident)+) => {$(
         impl Readable for $t {
             fn read(input: &mut Input) -> Self {
                 input.read_integer()
             }
         }
-    };
+    )+};
 }
 
-read_integer!(i8);
-read_integer!(i16);
-read_integer!(i32);
-read_integer!(i64);
-read_integer!(i128);
-read_integer!(isize);
-read_integer!(u8);
-read_integer!(u16);
-read_integer!(u32);
-read_integer!(u64);
-read_integer!(u128);
-read_integer!(usize);
+read_integer!(i8 i16 i32 i64 i128 isize u8 u16 u32 u64 u128 usize);
 
 macro_rules! tuple_readable {
-    ( $( $name:ident )+ ) => {
+    ($($name:ident)+) => {
         impl<$($name: Readable), +> Readable for ($($name,)+) {
             fn read(input: &mut Input) -> Self {
                 ($($name::read(input),)+)
