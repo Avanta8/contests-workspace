@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "sum_of_two_values",
     "main",
     "algo_lib",
 ]
