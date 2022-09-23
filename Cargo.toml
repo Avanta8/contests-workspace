@@ -1,10 +1,7 @@
 [workspace]
 members = [
+    "e_rectangular_congruence",
     "d2_zero_one_hard_version",
-    "d1_zero_one_easy_version",
-    "c_parity_shuffle_sorting",
-    "b_rule_of_league",
-    "a_consecutive_sum",
     "main",
     "algo_lib",
 ]

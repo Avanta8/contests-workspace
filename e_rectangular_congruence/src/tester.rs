@@ -23,7 +23,7 @@ fn is_equal_float_tokens(token_actual: Vec<u8>, token_expected: Vec<u8>) -> bool
 }
 
 fn get_tests_path() -> &'static str {
-    let a = "./a_consecutive_sum/tests/";
+    let a = "./e_rectangular_congruence/tests/";
     let b = "./tests/";
     if Path::new(a).is_dir() {
         a
