@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "array_description",
     "e_rectangular_congruence",
     "d2_zero_one_hard_version",
     "main",
